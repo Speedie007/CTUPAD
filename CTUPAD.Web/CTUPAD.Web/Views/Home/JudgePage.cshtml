@@ -1,0 +1,241 @@
+﻿@model JugdeEvaluationViewModel
+
+@inject UserManager<ApplicationUser> UserManager
+@{
+    ViewData["Title"] = "JudgePage";
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+<div class="row">
+    <div class="col-4">
+        <h1>Category</h1>
+        <hr />
+        <div class="CategoriesToRate">
+            @{
+                foreach (Category cat in Model.ListOfCategories)
+                {
+                    <button type="button" class="btn btn-block btn-primary" onclick="setSelectedCategory(@cat.CategoryID, '@cat.CategoryName');">@cat.CategoryName</button>
+                }
+            }
+
+
+
+        </div>
+
+    </div>
+    <div class="col-8">
+        <h1>Rate Contestants</h1>
+        <hr />
+        <h4>Selected Category - <span id="spanCurrentlySelectedCategory">None</span></h4>
+        <hr />
+        <strong>Select Contestant Name</strong><br />
+        <select asp-for="ContestantID" asp-items="Model.Contestants" class="select2_Contestants form-control"></select>
+
+        <hr />
+
+        <div id="divCategoryCriteria">
+            <div class="form-group">
+                <label></label>
+                <input class="touchspin1" type="text" value="0" name="demo1">
+
+            </div>
+
+        </div>
+        <button type="button" class="btn btn-primary form-control mt-5  " onclick="SaveContestantRatings();">Add/Update Scores</button>
+    </div>
+</div>
+@Html.HiddenFor(x => x.JudgeID)
+@section Styles {
+
+    <environment names="Development,Staging,Production">
+        <link rel="stylesheet" href="~/lib/toastr/toastr.min.css" />
+        <link rel="stylesheet" href="~/lib/select2/dist/css/select2.min.css" />
+        <link rel="stylesheet" href="~/lib/bootstrap-touchspin/dist/jquery.bootstrap-touchspin.css" />
+
+    </environment>
+}
+
+@section Scripts {
+    <environment names="Development,Staging,Production">
+        <script src="~/lib/select2/dist/js/select2.min.js"></script>
+        <script src="~/lib/toastr/toastr.min.js"></script>
+        <script src="~/lib/bootstrap-touchspin/dist/jquery.bootstrap-touchspin.min.js"></script>
+    </environment>
+
+    <script type="text/javascript">
+
+        //Main CriteriaData
+            /*
+
+[{
+CategoryCriteariaID = 0,
+        Rating = 0
+}]
+
+*/
+    var MAIN_CRITERIA_DATA = new Array();
+        //Global Variables
+    var SELECTED_CATEGORYID = 0;
+
+    var objdivCategoryCriteria;
+    var cboObjContestants;
+    var objspanCurrentlySelectedCategory;
+
+    function setSelectedCategory(aCategoryID,aCategoryName) {
+        SELECTED_CATEGORYID = aCategoryID;
+       // alert(cboObjContestants.val());
+        objspanCurrentlySelectedCategory.html(aCategoryName);
+        LoadCategoryCriteria();
+    }
+    function SaveContestantRatings() {
+        var Rtn = new Array();
+        $.each(MAIN_CRITERIA_DATA, function (i,item) {
+             var _ViewModel = JSON.parse('{}');
+
+            _ViewModel.ContestantID = cboObjContestants.val();
+            _ViewModel.JugeID = $("#JudgeID").val();
+            _ViewModel.CategoryID = SELECTED_CATEGORYID;
+            _ViewModel.CategoryCriteariaID = item.CategoryCriteariaID;
+            _ViewModel.Rating = item.Rating;
+            Rtn[Rtn.length] = _ViewModel
+        });
+        
+
+            $.ajax({
+                type: "post",
+                url: '@Url.Action("SaveCategoryCriteria", "Home")',
+                        data: JSON.stringify(Rtn),
+                        contentType: "application/json; charset=utf-8",
+                        beforeSend: function (xhr) {
+                        xhr.setRequestHeader("RequestVerificationToken",
+                            $('input:hidden[name="__RequestVerificationToken"]').val());
+                    },
+                dataType: "json",
+                success: function (data) {
+                    //clearCategoryCriteria();
+                    //populateHardSkillSelect(data);
+                    //BuildCategoryCritearia(data);
+                    toastr.success('Criteria Saved', 'Success');
+                },
+                    error: function (data, textStatus, error) {
+                        toastr.error("Something went wrong - " + error, 'Error');
+                }
+            });
+    }
+    function LoadCategoryCriteria() {
+
+
+        if (cboObjContestants.val() == null) {
+            objdivCategoryCriteria.html('Please Select Contest!');
+        }
+        if (SELECTED_CATEGORYID == 0) {
+            objdivCategoryCriteria.html('Please Select Category!');
+        }
+        if ((SELECTED_CATEGORYID != 0) && (cboObjContestants.val() != null)) {
+             var _ViewModel = JSON.parse('{}');
+
+            _ViewModel.ContestantID = cboObjContestants.val();
+            _ViewModel.JugeID = $("#JudgeID").val();
+            _ViewModel.CategoryID = SELECTED_CATEGORYID;
+
+            $.ajax({
+                type: "post",
+                url: '@Url.Action("GetCategoryCriteria", "Home")',
+                        data: JSON.stringify(_ViewModel),
+                        contentType: "application/json; charset=utf-8",
+                        beforeSend: function (xhr) {
+                        xhr.setRequestHeader("RequestVerificationToken",
+                            $('input:hidden[name="__RequestVerificationToken"]').val());
+                    },
+                dataType: "json",
+                success: function (data) {
+                    clearCategoryCriteria();
+                    //populateHardSkillSelect(data);
+                    BuildCategoryCritearia(data);
+                    toastr.success('Criteria Loaded', 'Success');
+                },
+                    error: function (data, textStatus, error) {
+                        toastr.error("Something went wrong - " + error, 'Error');
+                }
+            });
+        }
+
+
+    }
+    function clearCategoryCriteria() {
+        objdivCategoryCriteria.html('');
+        MAIN_CRITERIA_DATA = new Array();
+    }
+
+    function setCriteriaItem(txtObj,categoryCriteariaID ) {
+       
+
+        $.each(MAIN_CRITERIA_DATA, function (i,item) {
+            if (item.CategoryCriteariaID == categoryCriteariaID) {
+                MAIN_CRITERIA_DATA[i].Rating = $(txtObj).val();
+            }
+        });
+        //alert(JSON.stringify(MAIN_CRITERIA_DATA));
+    }
+    function BuildCategoryCritearia(data) {
+        
+        var html = '<div class="row">';
+        html += '<div class="col-12 mt-2"><table>';
+       
+        if (data.length > 0) {
+            $.each(data, function (i, item) {
+
+            html += '<tr><td><div class="form-group">';
+                html += '<label><strong>' + item.categoryCriteariaName + '</strong></label></td>';
+                html += '<td><input class="touchspin1" onchange="setCriteriaItem(this,' + item.categoryCriteariaID + ');" type="text" value="' + item.rating + '" name="demo1"></td>';
+                html += '</tr></div>';
+
+                var criteriaItem = JSON.parse('{}');
+                
+                criteriaItem.CategoryCriteariaID = item.categoryCriteariaID;
+                criteriaItem.Rating = item.rating;
+
+                MAIN_CRITERIA_DATA[MAIN_CRITERIA_DATA.length] = criteriaItem;
+        });
+        } else {
+            html += '<tr><td><span class="alert alert-warning">No Criteria Setup! PLease Add Criteria.</span></td></tr>';
+        }
+
+        html += '</table></div >';
+            html += '</div>';
+        objdivCategoryCriteria.html(html);
+        $(".touchspin1").TouchSpin({
+                buttondown_class: 'btn btn-white',
+            buttonup_class: 'btn btn-white',
+                 min: 0,
+                max: 10,
+            step: 0.5,
+                decimals: 1
+        });
+        
+    }
+    $(document).ready(function () {
+        objdivCategoryCriteria = $("#divCategoryCriteria");
+        objspanCurrentlySelectedCategory = $("#spanCurrentlySelectedCategory");
+          cboObjContestants =   $(".select2_Contestants").select2({
+                placeholder: "Select a Contestant",
+                allowClear: true
+            });
+
+        cboObjContestants.change(function () {
+                //LoadIndustries($(this).val());
+                //setIndustrySelectionSummary();
+
+            clearCategoryCriteria();
+            LoadCategoryCriteria();
+        });
+        cboObjContestants.val(null);
+        cboObjContestants.trigger('change');
+        toastr.options.progressBar = true;
+        toastr.options.preventDuplicates = true;
+        toastr.options.newestOnTop = true;
+        toastr.options.closeButton = true;
+        });
+
+    </script>
+}
